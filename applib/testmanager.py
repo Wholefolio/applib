@@ -6,8 +6,9 @@ from socket import socket, AF_INET, SOCK_STREAM
 
 from manager import Manager
 
+
 class TestManager(unittest.TestCase):
-    
+
     def setUp(self):
         self.manager = Manager()
 

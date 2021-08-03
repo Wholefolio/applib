@@ -4,6 +4,8 @@ import simplejson
 import logging
 from os import environ
 from django.core.exceptions import ImproperlyConfigured
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
 
 def bool_eval(value):
@@ -47,23 +49,28 @@ def appRequest(method, url, data=None, retry=3):
     logger = logging.getLogger()
     HEADERS = {"Content-Type": "application/json"}
     resp = False
-    for i in range(1, retry+1):
-        try:
-            resp = requests.request(method, url, data=json.dumps(data),
-                                    headers=HEADERS, timeout=3)
-            break
-        except requests.exceptions.ConnectionError as e:
-            msg = "Can't connect to app!"
-            msg += "Error: {}! Retry {}".format(e, i)
-            logger.critical(msg)
-        except requests.exceptions.Timeout:
-            msg = "Request timeout reached!"
-            logger.critical(msg)
-        except requests.exceptions.ChunkedEncodingError as e:
-            logger.critical("Connection broken. Error: {}".format(e))
-    if not resp and i==retry:
-        msg = "Giving up - max retries reached."
-        logger.info
+    retry_strategy = Retry(
+        total=retry,
+        status_forcelist=[429, 500, 502, 503, 504],
+        method_whitelist=["HEAD", "GET", "OPTIONS"]
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    http = requests.Session()
+    http.mount("https://", adapter)
+    http.mount("http://", adapter)
+    try:
+        resp = http.request(method, url, data=json.dumps(data), headers=HEADERS, timeout=3)
+    except requests.exceptions.ConnectionError as e:
+        msg = f"Can't connect to app! Error: {e}! Retries tried: {retry}"
+        logger.critical(msg)
+        return {"error": msg}
+    except requests.exceptions.Timeout:
+        msg = "Request timeout reached!"
+        logger.critical(msg)
+        return {"error": msg}
+    except requests.exceptions.ChunkedEncodingError as e:
+        msg = f"Connection broken. Error: {e}"
+        logger.critical(msg)
         return {"error": msg}
     if not resp.ok:
         try:

@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='applib',
-      version='1.3.3',
+      version='1.4.0',
       description='App library - common toolbox library for applications',
       url='https://github.com/wholefolio/applib',
       author='Atanas K',
